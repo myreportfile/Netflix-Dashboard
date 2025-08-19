@@ -1,0 +1,457 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+
+# Page Config
+st.set_page_config(
+    page_title="Netflix Analytics Dashboard",
+    page_icon="📺",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Netflix-themed CSS styling
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Root Variables */
+:root {
+    --netflix-red: #e50914;
+    --netflix-black: #141414;
+    --netflix-dark-gray: #1a1a1a;
+    --netflix-gray: #333333;
+    --netflix-light-gray: #757575;
+    --netflix-white: #ffffff;
+    --gradient-red: linear-gradient(135deg, #e50914 0%, #b81d24 100%);
+    --gradient-dark: linear-gradient(135deg, #141414 0%, #1a1a1a 100%);
+    --shadow-main: 0 8px 32px rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --shadow-hover: 0 12px 40px rgba(229, 9, 20, 0.3);
+}
+
+/* Global Styles */
+.stApp {
+    background: var(--netflix-black);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Main Container */
+.main .block-container {
+    max-width: 1400px;
+    padding: 2rem 1rem;
+    background: var(--netflix-black);
+}
+
+/* Header Styling */
+.main h1 {
+    font-size: 3.5rem !important;
+    font-weight: 700 !important;
+    text-align: center;
+    margin-bottom: 0.5rem !important;
+    background: var(--gradient-red);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: titleGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes titleGlow {
+    from { filter: drop-shadow(0 0 5px rgba(229, 9, 20, 0.5)); }
+    to { filter: drop-shadow(0 0 20px rgba(229, 9, 20, 0.8)); }
+}
+
+/* Subheaders */
+.main h2, .main h3 {
+    color: var(--netflix-white) !important;
+    font-weight: 600 !important;
+    margin: 2rem 0 1rem 0 !important;
+    position: relative;
+    padding-left: 1rem;
+}
+
+.main h2::before, .main h3::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 100%;
+    background: var(--gradient-red);
+    border-radius: 2px;
+}
+
+/* Metrics */
+[data-testid="metric-container"] {
+    background: var(--gradient-dark);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--netflix-gray);
+    transition: all 0.3s ease;
+}
+
+[data-testid="metric-container"]:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--netflix-red);
+}
+
+[data-testid="metric-container"] [data-testid="metric-container-value"] {
+    color: var(--netflix-red) !important;
+    font-weight: 700 !important;
+    font-size: 2rem !important;
+}
+
+[data-testid="metric-container"] [data-testid="metric-container-label"] {
+    color: var(--netflix-white) !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Charts */
+.js-plotly-plot {
+    background: var(--netflix-dark-gray) !important;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--netflix-gray);
+    transition: all 0.3s ease;
+}
+
+.js-plotly-plot:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--netflix-red);
+}
+
+/* DataFrame */
+.dataframe {
+    background: var(--netflix-dark-gray) !important;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--netflix-gray);
+}
+
+.dataframe thead th {
+    background: var(--gradient-red) !important;
+    color: var(--netflix-white) !important;
+    font-weight: 600 !important;
+    padding: 1rem !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dataframe tbody td {
+    background: var(--netflix-dark-gray) !important;
+    color: var(--netflix-white) !important;
+    padding: 0.75rem 1rem !important;
+    border-bottom: 1px solid var(--netflix-gray);
+}
+
+.dataframe tbody tr:hover {
+    background: rgba(229, 9, 20, 0.1) !important;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    background: var(--netflix-dark-gray);
+    border-radius: 12px;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: transparent;
+    border-radius: 8px;
+    color: var(--netflix-light-gray);
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    background: rgba(229, 9, 20, 0.1);
+    color: var(--netflix-white);
+}
+
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    background: var(--gradient-red);
+    color: var(--netflix-white);
+}
+
+/* Sidebar */
+.css-1d391kg {
+    background: var(--gradient-dark) !important;
+    border-right: 1px solid var(--netflix-gray);
+}
+
+/* Animation for content loading */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.element-container {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Text Colors */
+.main p {
+    color: var(--netflix-light-gray);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .main h1 {
+        font-size: 2.5rem !important;
+    }
+    
+    .main .block-container {
+        padding: 1rem 0.5rem;
+    }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--netflix-dark-gray);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--netflix-red);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #b81d24;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Load Data Function
+@st.cache_data
+def load_data():
+    try:
+        df = pd.read_csv("netflix_titles.csv")
+        df['date_added'] = pd.to_datetime(df['date_added'].astype(str).str.strip(), errors='coerce')
+        df['year_added'] = df['date_added'].dt.year
+        df['month_added'] = df['date_added'].dt.month_name()
+        df['country'].fillna('Unknown', inplace=True)
+        df['type'].fillna('Unknown', inplace=True)
+        df['listed_in'].fillna('Unknown', inplace=True)
+        return df
+    except FileNotFoundError:
+        st.error("Netflix dataset not found. Please upload 'netflix_titles.csv' to the same directory.")
+        return None
+
+# Load data
+df = load_data()
+
+if df is not None:
+    # Main Title
+    st.markdown("<h1>📺 Netflix Analytics Dashboard</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #757575; margin-bottom: 3rem;'>Explore Netflix's vast content library through interactive visualizations</p>", unsafe_allow_html=True)
+
+    # Metrics Row
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Titles", f"{len(df):,}")
+    
+    with col2:
+        movies_count = df[df['type'] == 'Movie'].shape[0]
+        st.metric("Movies", f"{movies_count:,}")
+    
+    with col3:
+        tv_shows_count = df[df['type'] == 'TV Show'].shape[0]
+        st.metric("TV Shows", f"{tv_shows_count:,}")
+    
+    with col4:
+        countries_count = df['country'].nunique()
+        st.metric("Countries", f"{countries_count:,}")
+
+    # Charts Row 1
+    st.markdown("## 📊 Content Overview")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Content Type Distribution
+        type_counts = df['type'].value_counts()
+        fig_pie = px.pie(
+            names=type_counts.index, 
+            values=type_counts.values, 
+            title="Content Distribution by Type",
+            hole=0.4,
+            color_discrete_sequence=['#e50914', '#b81d24']
+        )
+        fig_pie.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white',
+            title_font_size=16,
+            title_font_color='white'
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col2:
+        # Content Added Over Years
+        year_data = df['year_added'].value_counts().sort_index()
+        fig_bar = px.bar(
+            x=year_data.index, 
+            y=year_data.values, 
+            title="Titles Added Over Years",
+            labels={'x':'Year', 'y':'Number of Titles'},
+            color=year_data.values,
+            color_continuous_scale=['#b81d24', '#e50914']
+        )
+        fig_bar.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white',
+            title_font_size=16,
+            title_font_color='white',
+            xaxis=dict(gridcolor='#333333'),
+            yaxis=dict(gridcolor='#333333')
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    # Charts Row 2
+    st.markdown("## 🎭 Genre and Geographic Analysis")
+    col3, col4 = st.columns(2)
+
+    with col3:
+        # Top Genres
+        genres = df['listed_in'].str.split(',').explode().str.strip()
+        top_genres = genres.value_counts().head(10)
+        fig_genres = px.bar(
+            y=top_genres.index, 
+            x=top_genres.values, 
+            orientation='h',
+            title="Top 10 Genres",
+            labels={'x':'Number of Titles', 'y':'Genre'},
+            color=top_genres.values,
+            color_continuous_scale=['#b81d24', '#e50914']
+        )
+        fig_genres.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white',
+            title_font_size=16,
+            title_font_color='white',
+            xaxis=dict(gridcolor='#333333'),
+            yaxis=dict(gridcolor='#333333')
+        )
+        st.plotly_chart(fig_genres, use_container_width=True)
+
+    with col4:
+        # Top Countries
+        countries = df['country'].str.split(',').explode().str.strip()
+        top_countries = countries.value_counts().head(10)
+        fig_countries = px.bar(
+            y=top_countries.index, 
+            x=top_countries.values, 
+            orientation='h',
+            title="Top 10 Countries by Content",
+            labels={'x':'Number of Titles', 'y':'Country'},
+            color=top_countries.values,
+            color_continuous_scale=['#b81d24', '#e50914']
+        )
+        fig_countries.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white',
+            title_font_size=16,
+            title_font_color='white',
+            xaxis=dict(gridcolor='#333333'),
+            yaxis=dict(gridcolor='#333333')
+        )
+        st.plotly_chart(fig_countries, use_container_width=True)
+
+    # Data Tables Section
+    st.markdown("## 📋 Detailed Analytics")
+    tab1, tab2 = st.tabs(["🎬 Top Directors", "📺 Popular Titles"])
+
+    with tab1:
+        st.markdown("### Most Prolific Directors")
+        top_directors = df['director'].dropna().value_counts().head(10)
+        directors_df = top_directors.reset_index()
+        directors_df.columns = ['Director', 'Number of Titles']
+        st.dataframe(directors_df, use_container_width=True)
+
+    with tab2:
+        st.markdown("### Most Common Title Names")
+        top_titles = df['title'].value_counts().head(10)
+        titles_df = top_titles.reset_index()
+        titles_df.columns = ['Title', 'Frequency']
+        st.dataframe(titles_df, use_container_width=True)
+
+    # Additional Insights
+    st.markdown("## 🔍 Additional Insights")
+    col5, col6 = st.columns(2)
+
+    with col5:
+        # Content by Rating
+        if 'rating' in df.columns:
+            rating_counts = df['rating'].value_counts().head(10)
+            fig_rating = px.bar(
+                x=rating_counts.index,
+                y=rating_counts.values,
+                title="Content by Rating",
+                labels={'x':'Rating', 'y':'Number of Titles'},
+                color=rating_counts.values,
+                color_continuous_scale=['#b81d24', '#e50914']
+            )
+            fig_rating.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white',
+                title_font_size=16,
+                title_font_color='white',
+                xaxis=dict(gridcolor='#333333'),
+                yaxis=dict(gridcolor='#333333')
+            )
+            st.plotly_chart(fig_rating, use_container_width=True)
+
+    with col6:
+        # Content by Duration (for movies)
+        if 'duration' in df.columns:
+            movie_durations = df[df['type'] == 'Movie']['duration'].dropna()
+            if not movie_durations.empty:
+                fig_duration = px.histogram(
+                    x=movie_durations,
+                    title="Movie Duration Distribution",
+                    labels={'x':'Duration', 'y':'Count'},
+                    nbins=20,
+                    color_discrete_sequence=['#e50914']
+                )
+                fig_duration.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font_color='white',
+                    title_font_size=16,
+                    title_font_color='white',
+                    xaxis=dict(gridcolor='#333333'),
+                    yaxis=dict(gridcolor='#333333')
+                )
+                st.plotly_chart(fig_duration, use_container_width=True)
+
+    # Footer
+    st.markdown("---")
+    st.markdown("<p style='text-align: center; color: #757575;'>Netflix Analytics Dashboard | Data insights at your fingertips</p>", unsafe_allow_html=True)
+
+else:
+    st.error("Please ensure 'netflix_titles.csv' is in the same directory as this script.")
